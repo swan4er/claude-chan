@@ -1,0 +1,8 @@
+{
+  "name": "claude-chan",
+  "owner": { "name": "Станислав" },
+  "metadata": { "description": "claude-chan: аниме-помощница над строкой ввода Claude Code" },
+  "plugins": [
+    { "name": "claude-chan", "source": "./", "description": "Claude-чан — аниме-помощница над строкой ввода Claude Code" }
+  ]
+}

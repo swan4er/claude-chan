@@ -1,0 +1,11 @@
+{
+  "name": "claude-chan",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/**/*.spec.ts\"",
+    "test:hooks": "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .",
+    "typecheck": "npx -y -p typescript tsc -p tsconfig.json",
+    "preview": "node tools/preview.ts"
+  }
+}

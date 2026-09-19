@@ -1,0 +1,4 @@
+{
+  "description": "claude-chan: аниме-помощница над строкой ввода. Нужна CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1; сборки без function hooks игнорируют ключ modules.",
+  "modules": ["./register.tsx"]
+}

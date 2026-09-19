@@ -1,0 +1,7 @@
+# типы пишет /plugin-types внутри папки плагина; они привязаны к версии Claude Code
+.claude/*
+!.claude/settings.json
+node_modules/
+.DS_Store
+preview/
+preview/
