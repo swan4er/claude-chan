@@ -1,5 +1,6 @@
 // Снимок терминала (tmux capture-pane -e -p) → PNG: как Claude-чан выглядит на самом деле.
-// Понимает цвета текста и фона (24-битные и палитру на 256), символы ▀ ▄ █; остальное — фон.
+// Понимает цвета текста и фона (24-битные и палитру на 256), полублоки и четвертинки клетки; остальное — фон.
+// Клетка — 2×2 точки, точка вытянута 1:2, как в терминале.
 // node tools/ansi2png.ts <вход.ansi> <выход.png> [колонок] [масштаб]
 import { readFileSync, writeFileSync } from 'node:fs'
 import { encodePng } from './png.ts'
@@ -14,12 +15,14 @@ function xterm(n: number): number {
 }
 const [input, output, colsArg, scaleArg] = process.argv.slice(2)
 const cols = Number(colsArg) || 20
-const scale = Number(scaleArg) || 10
+const scale = Number(scaleArg) || 5
 const BG = 0x1e1e2e
-const rows: [number, number][][] = []
+// маска четвертинок: 1 — левый верхний, 2 — правый верхний, 4 — левый нижний, 8 — правый нижний
+const QUADS = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█'
+const rows: number[][][] = []
 for (const line of readFileSync(input, 'utf8').split('\n')) {
-  if (!/[▀▄█]/.test(line)) continue
-  const cells: [number, number][] = []
+  if (!/[▘▝▀▖▌▞▛▗▚▐▜▄▙▟█]/.test(line)) continue
+  const cells: number[][] = []
   let fg = 0xcccccc
   let bg = BG
   for (const m of line.matchAll(/\x1b\[([0-9;]*)m|([^\x1b])/gu)) {
@@ -34,12 +37,21 @@ for (const line of readFileSync(input, 'utf8').split('\n')) {
         else if (p[i] === 39) fg = 0xcccccc
         else if (p[i] === 49) bg = BG
       }
-    } else if (cells.length < cols) cells.push(m[2] === '▀' ? [fg, bg] : m[2] === '▄' ? [bg, fg] : m[2] === '█' ? [fg, fg] : [bg, bg])
+    } else if (cells.length < cols) {
+      const mask = Math.max(0, QUADS.indexOf(m[2]))
+      cells.push([1, 2, 4, 8].map(bit => (mask & bit ? fg : bg)))
+    }
   }
-  while (cells.length < cols) cells.push([BG, BG])
+  while (cells.length < cols) cells.push([BG, BG, BG, BG])
   rows.push(cells)
 }
-const buf = new Uint32Array(cols * rows.length * 2)
-rows.forEach((cells, y) => cells.forEach(([top, bottom], x) => { buf[y * 2 * cols + x] = top; buf[(y * 2 + 1) * cols + x] = bottom }))
-writeFileSync(output, encodePng(buf, cols, rows.length * 2, scale))
+const w = cols * 2 * scale
+const h = rows.length * 4 * scale
+const buf = new Uint32Array(w * h)
+rows.forEach((cells, cy) => cells.forEach((quad, cx) => quad.forEach((color, i) => {
+  const x0 = (cx * 2 + (i & 1)) * scale
+  const y0 = (cy * 2 + (i >> 1)) * 2 * scale
+  for (let dy = 0; dy < 2 * scale; dy++) buf.fill(color, (y0 + dy) * w + x0, (y0 + dy) * w + x0 + scale)
+})))
+writeFileSync(output, encodePng(buf, w, h, 1))
 console.log(`${rows.length} строк × ${cols} колонок → ${output}`)

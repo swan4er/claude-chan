@@ -6,10 +6,75 @@ import { CHARS_PER_SECOND, isBlinking, isTyping, mouthOpen, typedCount, visibleL
 import {
   CANNED, MAX_REPLY_CHARS, addressed, MEMORY_TURNS, MOOD_TAGS, SYSTEM, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind,
 } from '../hooks/chan/persona.ts'
+import { LARGE_BASE, LARGE_COLUMNS, LARGE_HEIGHT, LARGE_MIN_ROWS, LARGE_ROWS, LARGE_WIDTH, composeLarge, largePortrait } from '../hooks/chan/large.ts'
+import { overloadedCells, toCells, toQuadRuns } from '../hooks/chan/quad.ts'
 import { HEIGHT, PALETTE, WIDTH, compose, portrait, shownIn256, toRuns, type Mood, type Rgb } from '../hooks/chan/portrait.ts'
 
 const MOODS: Mood[] = ['neutral', 'happy', 'thinking', 'worried', 'sleepy', 'surprised']
 const width = (s: string) => [...s].length
+
+describe('крупный портрет', () => {
+  const POSES = MOODS.flatMap(mood => [false, true].flatMap(blink => [false, true].map(talk => ({ mood, blink, talk }))))
+
+  test('любая поза — LARGE_HEIGHT × LARGE_WIDTH, только символы палитры; основа симметрична по ширине', () => {
+    for (const pose of POSES) {
+      const map = composeLarge(pose)
+      assert.equal(map.length, LARGE_HEIGHT)
+      for (const row of map) {
+        assert.equal(row.length, LARGE_WIDTH)
+        for (const ch of row) assert.ok(ch === '.' || ch in PALETTE, `символ «${ch}»`)
+      }
+    }
+    assert.equal(LARGE_HEIGHT % 2, 0)
+    assert.equal(LARGE_WIDTH % 2, 0)
+  })
+
+  test('выражения различаются; моргание и речь меняют картинку', () => {
+    assert.equal(new Set(MOODS.map(mood => composeLarge({ mood }).join('\n'))).size, MOODS.length)
+    for (const mood of MOODS) assert.notDeepEqual(composeLarge({ mood }), composeLarge({ mood, talk: true }), mood)
+    assert.notDeepEqual(composeLarge({ mood: 'neutral' }), composeLarge({ mood: 'neutral', blink: true }))
+    assert.deepEqual(composeLarge({ mood: 'sleepy' }), composeLarge({ mood: 'sleepy', blink: true }))
+  })
+
+  test('лицо помещается в два цвета на клетку: наклейки не теряют точек, основа теряет мало', () => {
+    const base = overloadedCells(LARGE_BASE)
+    assert.ok(base <= 25, `в основе упрощено клеток: ${base}`)
+    // глаза, брови, рот и румянец нарисованы по сетке клеток: лишних упрощений они не добавляют
+    for (const pose of POSES) assert.ok(overloadedCells(composeLarge(pose)) <= base + 1, JSON.stringify(pose))
+  })
+
+  test('отрезки: LARGE_ROWS строк по LARGE_COLUMNS клеток; обрезка снизу не трогает лицо', () => {
+    for (const pose of POSES) {
+      const rows = largePortrait(pose)
+      assert.equal(rows.length, LARGE_ROWS)
+      for (const row of rows) assert.equal(row.reduce((n, r) => n + width(r.text), 0), LARGE_COLUMNS)
+    }
+    const full = largePortrait({ mood: 'happy' })
+    assert.deepEqual(largePortrait({ mood: 'happy' }, LARGE_MIN_ROWS), full.slice(0, LARGE_MIN_ROWS))
+    // меньше минимума не режет: лицо важнее
+    assert.equal(largePortrait({ mood: 'happy' }, 3).length, LARGE_MIN_ROWS)
+    // рот (строки 20–21) и подбородок (до 23-й) — в пределах минимальной высоты
+    assert.ok(composeLarge({ mood: 'happy' })[21].includes('M'))
+    assert.ok(LARGE_MIN_ROWS * 2 >= 24)
+  })
+
+  test('четвертинки: символ по маске, два цвета на клетку, третий уходит в ближайший', () => {
+    assert.deepEqual(toQuadRuns(['H.', '.H']), [[{ text: '▚', fg: '#d77814', bg: undefined }]])
+    assert.deepEqual(toQuadRuns(['HHSS', 'HHSS']), [[{ text: '█', fg: '#d77814', bg: undefined }, { text: '█', fg: '#ffd7af', bg: undefined }]])
+    assert.deepEqual(toQuadRuns(['HS', 'HS']), [[{ text: '▌', fg: '#d77814', bg: '#ffd7af' }]])
+    // H, H, S и тень кожи s: s ближе к S, чем к волосам
+    const [[cell]] = toCells(['HH', 'Ss'])
+    assert.deepEqual(cell, { glyph: '▀', fg: '#d77814', bg: '#ffd7af' })
+    assert.equal(overloadedCells(['HH', 'Ss']), 1)
+  })
+
+  test('новые цвета не слипаются с соседями в палитре 256', () => {
+    const shown = (k: string) => shownIn256(PALETTE[k]).join(',')
+    for (const [a, b] of [['D', 'H'], ['D', 'h'], ['i', 'e'], ['i', 'W'], ['R', 'M'], ['M', 'C'], ['s', 'D']]) {
+      assert.notEqual(shown(a), shown(b), `${a} и ${b} слиплись в ${shown(a)}`)
+    }
+  })
+})
 
 describe('портрет', () => {
   test('любая поза — ровно HEIGHT × WIDTH, только символы палитры', () => {

@@ -8,8 +8,10 @@ tier('user')
 // что движок рисует в полосе сам, «под» плагином
 const BENEATH: RenderElement = { type: 'Text', children: [''] }
 const run = (args: string) => ({ command: 'chan', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } }) as const
+// полноэкранный режим: maxRows — место, которое осталось полосе
 const band = (maxRows: number, bodyColumns = 120) => ({
   component: 'AbovePrompt',
+  viewport: { columns: bodyColumns, rows: (maxRows + 6) * 2, isFullscreen: true },
   props: { hasSurvey: false, isWorking: false, maxRows, bodyColumns, scroll: { offset: 0, bodyRows: maxRows }, view: {} },
 }) as const
 
@@ -108,6 +110,27 @@ describe('register', () => {
     await $.prompt.submit({ text: 'чан, привет', wait: false, origin: { kind: 'peer' } } as never)
     expect(entered).toHaveLength(2)
     expect(asked).toHaveLength(1)
+  })
+
+  test('размер портрета — по месту: высокая полоса даёт крупный из четвертинок, иначе малый из полублоков', async ($, on) => {
+    world(on)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+    await $.command.run(run(''))
+    const QUADS = /[▘▝▖▗▚▞▙▛▜▟]/
+    for (const [size, large] of [[band(19), true], [band(15), true], [band(14), false], [band(11), false], [band(19, 60), false]] as const) {
+      const ui = await $.ui.mount({ plugin: 'claude-chan', surface: 'terminal', ...size })
+      const quads = await ui.findAll({ type: 'Text', text: QUADS })
+      expect(quads.length > 0).toBe(large)
+      expect(await ui.find({ key: 'say' })).toBeDefined()
+      await ui.unmount()
+    }
+    // обычный экран: maxRows — вся высота окна, полоса берёт не больше половины
+    for (const [rows, large, face] of [[24, false, false], [36, true, false], [20, false, true]] as const) {
+      const ui = await $.ui.mount({ plugin: 'claude-chan', surface: 'terminal', ...band(rows), viewport: { columns: 120, rows, isFullscreen: false } })
+      expect((await ui.findAll({ type: 'Text', text: QUADS })).length > 0).toBe(large)
+      expect((await ui.find({ type: 'Text', text: /Claude-чан \(/ })) !== undefined).toBe(face)
+      await ui.unmount()
+    }
   })
 
   test('в низком или узком окне — одна строка со смайликом вместо портрета', async ($, on) => {

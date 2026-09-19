@@ -2,6 +2,7 @@
 import type { EngineInterface, Register, Timer } from 'claude-code'
 import { isBlinking, isTyping, mouthOpen, typedCount, visibleLines } from './chan/bubble.ts'
 import { SYSTEM, addressed, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind, type Turn } from './chan/persona.ts'
+import { LARGE_COLUMNS, LARGE_MIN_ROWS, LARGE_ROWS, largePortrait } from './chan/large.ts'
 import { WIDTH, portrait, type Mood } from './chan/portrait.ts'
 
 // Модуль хуков. Claude-чан живёт в полосе над строкой ввода: портрет из цветных полублоков, бабл с
@@ -22,6 +23,10 @@ const ORANGE = '#d77814'
 const FULL_ROWS = 11
 const FULL_COLUMNS = 56
 const BUBBLE_LINES = 5
+// крупный портрет: от 13 до 16 строк (снизу обрезаются плечи) + поле ввода + подсказка
+const LARGE_BAND_ROWS = LARGE_MIN_ROWS + 2
+const LARGE_BAND_COLUMNS = 68
+const LARGE_BUBBLE_LINES = 7
 const FRAME_MS = 140
 const LONG_TURN_MS = 60_000
 const TOOL_FAIL_QUIET_MS = 20_000
@@ -220,8 +225,13 @@ export const register: Register = on => {
     const elapsed = now - lineAt
     const typing = isTyping(line, elapsed)
 
+    // Сколько строк можно занять. В полноэкранном режиме maxRows — уже остаток нижней половины окна;
+    // на обычном экране это вся высота терминала, и без своей границы портрет вытеснил бы переписку
+    // (в окне 24 строки он занимал 17). Поэтому там — не больше половины окна.
+    const room = e.viewport?.isFullscreen === true ? e.props.maxRows : Math.floor(e.props.maxRows / 2)
+
     // мало места: одна строка с лицом-смайликом вместо портрета
-    if (e.props.maxRows < FULL_ROWS || e.props.bodyColumns < FULL_COLUMNS) {
+    if (room < FULL_ROWS || e.props.bodyColumns < FULL_COLUMNS) {
       return (
         <Box flexDirection="column">
           <Text wrap="truncate-end"><Text color={ORANGE} bold>{`Claude-чан ${FACE[mood]} `}</Text>{visibleLines(line, elapsed, 400, 1)[0] ?? ''}</Text>
@@ -230,22 +240,27 @@ export const register: Register = on => {
       )
     }
 
-    const bubbleWidth = Math.max(30, Math.min(64, e.props.bodyColumns - WIDTH - 4))
-    const lines = visibleLines(line, elapsed, bubbleWidth - 4, BUBBLE_LINES)
-    const rows = portrait({ mood, blink: isBlinking(now), talk: typing && mouthOpen(elapsed) })
+    // высокое окно — крупный портрет из четвертинок клетки, иначе малый из полублоков
+    const large = room >= LARGE_BAND_ROWS && e.props.bodyColumns >= LARGE_BAND_COLUMNS
+    const columns = large ? LARGE_COLUMNS : WIDTH
+    const bubbleLines = large ? LARGE_BUBBLE_LINES : BUBBLE_LINES
+    const bubbleWidth = Math.max(30, Math.min(64, e.props.bodyColumns - columns - 4))
+    const lines = visibleLines(line, elapsed, bubbleWidth - 4, bubbleLines)
+    const pose = { mood, blink: isBlinking(now), talk: typing && mouthOpen(elapsed) }
+    const rows = large ? largePortrait(pose, Math.min(LARGE_ROWS, room - 2)) : portrait(pose)
     // поле ввода есть не на каждой поверхности (на мобильной его нет)
     const Input = 'Input' in table ? table.Input : undefined
     return (
       <Box flexDirection="column">
         <Box flexDirection="row">
-          <Box flexDirection="column" width={WIDTH}>
+          <Box flexDirection="column" width={columns}>
             {rows.map(row => (
               <Text>{row.map(run => (run.bg ? <Text color={run.fg} backgroundColor={run.bg}>{run.text}</Text> : run.fg ? <Text color={run.fg}>{run.text}</Text> : <Text>{run.text}</Text>))}</Text>
             ))}
           </Box>
           <Box flexDirection="column" marginLeft={2}>
             <Text color={ORANGE} bold>{'Claude-чан'}</Text>
-            <Box flexDirection="column" borderStyle="round" borderColor={ORANGE} width={bubbleWidth} height={BUBBLE_LINES + 2} paddingX={1}>
+            <Box flexDirection="column" borderStyle="round" borderColor={ORANGE} width={bubbleWidth} height={bubbleLines + 2} paddingX={1}>
               {lines.map(text => <Text wrap="truncate-end">{text}</Text>)}
             </Box>
           </Box>

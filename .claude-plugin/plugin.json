@@ -1,7 +1,16 @@
 {
   "name": "claude-chan",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Claude-чан — рыжая аниме-помощница над строкой ввода Claude Code: реагирует на работу Claude, отвечает в бабле на /chan <текст> или в поле ввода. Рисуется цветными полублоками, работает в любом терминале с цветом. Нужны function hooks (ранний доступ).",
-  "author": { "name": "Станислав" },
-  "keywords": ["companion", "mascot", "anime", "terminal", "function-hooks", "mod"]
+  "author": {
+    "name": "Станислав"
+  },
+  "keywords": [
+    "companion",
+    "mascot",
+    "anime",
+    "terminal",
+    "function-hooks",
+    "mod"
+  ]
 }
