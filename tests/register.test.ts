@@ -7,6 +7,8 @@ tier('user')
 
 // что движок рисует в полосе сам, «под» плагином
 const BENEATH: RenderElement = { type: 'Text', children: [''] }
+// что нарисовали соседние моды; тест может подменить
+let neighbour: RenderElement = BENEATH
 const run = (args: string) => ({ command: 'chan', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } }) as const
 // полноэкранный режим: maxRows — место, которое осталось полосе
 const band = (maxRows: number, bodyColumns = 120) => ({
@@ -28,7 +30,8 @@ function world(on: On, stored: Record<string, unknown> = {}, reply = '[радо�
   })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
-  on('ui.render', { component: 'AbovePrompt' }, () => BENEATH)
+  neighbour = BENEATH
+  on('ui.render', { component: 'AbovePrompt' }, () => neighbour)
   on('model.complete', ($, e) => {
     asked.push({ system: e.system, prompt: e.prompt, model: e.model })
     return { value: reply }
@@ -128,6 +131,23 @@ describe('register', () => {
     for (const [rows, large, face] of [[24, false, false], [36, true, false], [20, false, true]] as const) {
       const ui = await $.ui.mount({ plugin: 'claude-chan', surface: 'terminal', ...band(rows), viewport: { columns: 120, rows, isFullscreen: false } })
       expect((await ui.findAll({ type: 'Text', text: QUADS })).length > 0).toBe(large)
+      expect((await ui.find({ type: 'Text', text: /Claude-чан \(/ })) !== undefined).toBe(face)
+      await ui.unmount()
+    }
+  })
+
+  test('полоса общая: Claude-чан уступает соседу — портрет мельче, строка, а под игрой во всю полосу скрыта', async ($, on) => {
+    world(on)
+    const game = (height: number) => ({ type: 'Box', props: { flexDirection: 'column' }, children: [{ type: 'Box', props: { height }, children: [] }] }) as unknown as RenderElement
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+    await $.command.run(run(''))
+    const QUADS = /[▘▝▖▗▚▞▙▛▜▟]/
+    // [занято соседом, крупный, малый (есть поле ввода), строка со смайликом]
+    for (const [rows, large, small, face] of [[19, false, false, false], [16, false, false, true], [7, false, true, false], [2, true, false, false]] as const) {
+      neighbour = game(rows)
+      const ui = await $.ui.mount({ plugin: 'claude-chan', surface: 'terminal', ...band(19) })
+      expect((await ui.findAll({ type: 'Text', text: QUADS })).length > 0).toBe(large)
+      expect((await ui.find({ key: 'say' })) !== undefined).toBe(large || small)
       expect((await ui.find({ type: 'Text', text: /Claude-чан \(/ })) !== undefined).toBe(face)
       await ui.unmount()
     }

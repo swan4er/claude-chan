@@ -1,5 +1,6 @@
 /* @jsx h */
 import type { EngineInterface, Register, Timer } from 'claude-code'
+import { bandRoom, companionRoom } from './band.ts'
 import { isBlinking, isTyping, mouthOpen, typedCount, visibleLines } from './chan/bubble.ts'
 import { SYSTEM, addressed, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind, type Turn } from './chan/persona.ts'
 import { LARGE_COLUMNS, LARGE_MIN_ROWS, LARGE_ROWS, largePortrait } from './chan/large.ts'
@@ -225,17 +226,18 @@ export const register: Register = on => {
     const elapsed = now - lineAt
     const typing = isTyping(line, elapsed)
 
-    // Сколько строк можно занять. В полноэкранном режиме maxRows — уже остаток нижней половины окна;
-    // на обычном экране это вся высота терминала, и без своей границы портрет вытеснил бы переписку
-    // (в окне 24 строки он занимал 17). Поэтому там — не больше половины окна.
-    const room = e.viewport?.isFullscreen === true ? e.props.maxRows : Math.floor(e.props.maxRows / 2)
+    // Полоса общая с другими модами (см. ./band.ts): Claude-чан — компаньон, она уступает. Сначала рисуют
+    // соседи, ей остаётся остальное: крупный портрет → малый → одна строка → совсем скрыта.
+    const beneath = await next(e)
+    const room = companionRoom(bandRoom(e.props.maxRows, e.viewport), beneath)
+    if (room < 1) return beneath
 
     // мало места: одна строка с лицом-смайликом вместо портрета
     if (room < FULL_ROWS || e.props.bodyColumns < FULL_COLUMNS) {
       return (
         <Box flexDirection="column">
           <Text wrap="truncate-end"><Text color={ORANGE} bold>{`Claude-чан ${FACE[mood]} `}</Text>{visibleLines(line, elapsed, 400, 1)[0] ?? ''}</Text>
-          {await next(e)}
+          {beneath}
         </Box>
       )
     }
@@ -267,7 +269,7 @@ export const register: Register = on => {
         </Box>
         {Input ? <Input key="say" placeholder="поле Claude-чан: ctrl+x tab — сюда, Esc — обратно к Claude · проще: начните обычную строку с «чан, »" onSubmit={value => { if (value.trim()) ask($, value.trim()) }} /> : null}
         <Text dimColor wrap="truncate-end">{`«чан, …» в строке ввода — сказать ей · /chan off — скрыть · /chan chatty ${chatty ? 'off' : 'on'} — ${chatty ? 'тише' : 'болтливее'} · /chan reset — забыть разговор`}</Text>
-        {await next(e)}
+        {beneath}
       </Box>
     )
   })
