@@ -4,6 +4,11 @@ Claude-чан — маленькая рыжая аниме-помощница, �
 реагирует на работу Claude (задумалась, обрадовалась, встревожилась, задремала на долгом ходе) и
 разговаривает в бабле: вы пишете ей, отвечает модель, выражение лица подбирается по настроению ответа.
 
+![Claude-чан: два выражения лица; сверху полный цвет, снизу палитра на 256 цветов](docs/img/portrait.png)
+
+Картинка — предпросмотр (`npm run preview`), а не снимок экрана: точки нарисованы так, как их покажет
+терминал, сверху в полном цвете, снизу в палитре на 256 цветов. Все выражения — `docs/img/moods.png`.
+
 Это мод Claude Code на **function hooks** (ранний доступ): TypeScript, который выполняется внутри
 процесса Claude Code. API может меняться между релизами.
 
@@ -40,19 +45,21 @@ Zed, tmux. Для этого:
 
    Это включает модули хуков у всех установленных плагинов. Нужен Claude Code 2.1.269 или новее.
 
-2. Поставить плагин из папки — она сама себе marketplace:
+2. Поставить плагин с GitHub — репозиторий сам себе marketplace (каталог плагинов из одного плагина):
 
    ```sh
-   claude plugin marketplace add /путь/к/claude-chan
+   claude plugin marketplace add swan4er/claude-chan
    claude plugin install claude-chan@claude-chan
    ```
 
 3. Перезапустить `claude`, выполнить `/chan`.
 
-Без установки, на один запуск: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir /путь/к/claude-chan`.
+Из своей копии (для правок): `git clone https://github.com/swan4er/claude-chan`, дальше те же две команды, но
+вместо `swan4er/claude-chan` — путь к папке. Без установки, на один запуск:
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir /путь/к/claude-chan`.
 
-Обновление: поднять `version` в `.claude-plugin/plugin.json` → `claude plugin marketplace update claude-chan`
-→ `claude plugin update claude-chan@claude-chan` → перезапуск. Без смены версии обновление не придёт.
+Обновление: `claude plugin marketplace update claude-chan` → `claude plugin update claude-chan@claude-chan` →
+перезапуск. Обновление приходит, только если в репозитории выросла `version` в `.claude-plugin/plugin.json`.
 
 ## Как пользоваться
 
