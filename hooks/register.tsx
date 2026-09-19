@@ -1,12 +1,13 @@
 /* @jsx h */
 import type { EngineInterface, Register, Timer } from 'claude-code'
 import { isBlinking, isTyping, mouthOpen, typedCount, visibleLines } from './chan/bubble.ts'
-import { SYSTEM, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind, type Turn } from './chan/persona.ts'
+import { SYSTEM, addressed, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind, type Turn } from './chan/persona.ts'
 import { WIDTH, portrait, type Mood } from './chan/portrait.ts'
 
 // Модуль хуков. Claude-чан живёт в полосе над строкой ввода: портрет из цветных полублоков, бабл с
-// репликой, поле ввода. Говорить с ней можно командой `/chan <текст>` (работает в любом терминале)
-// или через поле ввода (фокус — ctrl+x tab, мышь не нужна). Отвечает модель через $.model.complete:
+// репликой, поле ввода. Говорить с ней можно прямо в обычной строке ввода — «чан, привет» (хук
+// prompt.submit забирает такую строку себе), командой `/chan <текст>` или через поле ввода
+// (фокус — ctrl+x tab, обратно — Esc; мышь не нужна). Отвечает модель через $.model.complete:
 // отдельный процесс Claude не запускается. На события (ход начался, закончился, команда упала) она
 // реагирует готовыми фразами — они бесплатные; запрос к модели на события включает `/chan chatty on`.
 //
@@ -170,6 +171,20 @@ export const register: Register = on => {
     return {}
   })
 
+  // «чан, …» в обычной строке ввода — реплика ей, а не большому Claude: строка до модели не доходит
+  on('prompt.submit', async ($, e, next) => {
+    // только то, что человек набрал сам: сообщения других сессий, плагинов и расписаний не перехватываются
+    const said = e.origin.kind === 'composer' ? addressed(e.text) : undefined
+    if (said === undefined) return next(e)
+    if (!open) {
+      open = true
+      void keep($, 'open', open)
+    }
+    ask($, said)
+    // движок печатает причину в переписке («Prompt dropped by a hook: …») — убрать это нельзя, поэтому коротко
+    return { drop: '→ Claude-чан' }
+  })
+
   on('turn.start', async ($, e, next) => {
     turnStartedAt = Date.now()
     longSaid = false
@@ -235,8 +250,8 @@ export const register: Register = on => {
             </Box>
           </Box>
         </Box>
-        {Input ? <Input key="say" placeholder="напишите Claude-чан и нажмите Enter (фокус сюда: ctrl+x tab)" onSubmit={value => { if (value.trim()) ask($, value.trim()) }} /> : null}
-        <Text dimColor wrap="truncate-end">{`/chan <текст> — сказать · /chan off — скрыть · /chan chatty ${chatty ? 'off' : 'on'} — ${chatty ? 'тише' : 'болтливее'} · /chan reset — забыть разговор`}</Text>
+        {Input ? <Input key="say" placeholder="поле Claude-чан: ctrl+x tab — сюда, Esc — обратно к Claude · проще: начните обычную строку с «чан, »" onSubmit={value => { if (value.trim()) ask($, value.trim()) }} /> : null}
+        <Text dimColor wrap="truncate-end">{`«чан, …» в строке ввода — сказать ей · /chan off — скрыть · /chan chatty ${chatty ? 'off' : 'on'} — ${chatty ? 'тише' : 'болтливее'} · /chan reset — забыть разговор`}</Text>
         {await next(e)}
       </Box>
     )

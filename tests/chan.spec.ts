@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { CHARS_PER_SECOND, isBlinking, isTyping, mouthOpen, typedCount, visibleLines, wrap } from '../hooks/chan/bubble.ts'
 import {
-  CANNED, MAX_REPLY_CHARS, MEMORY_TURNS, MOOD_TAGS, SYSTEM, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind,
+  CANNED, MAX_REPLY_CHARS, addressed, MEMORY_TURNS, MOOD_TAGS, SYSTEM, buildPrompt, canned, eventPrompt, parseHistory, parseReply, remember, type EventKind,
 } from '../hooks/chan/persona.ts'
 import { HEIGHT, PALETTE, WIDTH, compose, portrait, shownIn256, toRuns, type Mood, type Rgb } from '../hooks/chan/portrait.ts'
 
@@ -128,6 +128,18 @@ describe('характер', () => {
     assert.ok(prompt.endsWith('Программист: а теперь?\nClaude-чан:'))
     assert.ok(!buildPrompt([], 'привет').includes('Недавний разговор'))
     assert.ok(eventPrompt('тесты упали').includes('тесты упали'))
+  })
+
+  test('обращение по имени в обычной строке ввода', () => {
+    assert.equal(addressed('чан, как дела?'), 'как дела?')
+    assert.equal(addressed('Чан как дела'), 'как дела')
+    assert.equal(addressed('chan: hello there'), 'hello there')
+    assert.equal(addressed('  ч что думаешь?'), 'что думаешь?')
+    assert.equal(addressed('Claude-чан, привет'), 'привет')
+    assert.equal(addressed('тян, ты тут?'), 'ты тут?')
+    // не обращение: слово просто начинается так же, имя без реплики, команда, многострочный промпт
+    for (const text of ['чанга — это музыка', 'change the config', 'чан', 'чан,  ', '/chan привет', 'чан, смотри:\nкод', 'почини чан', 'channel settings'])
+      assert.equal(addressed(text), undefined, text)
   })
 
   test('испорченная память не роняет мод', () => {

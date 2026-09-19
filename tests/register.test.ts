@@ -84,6 +84,32 @@ describe('register', () => {
     await ui.unmount()
   })
 
+  test('«чан, …» в обычной строке ввода уходит ей, а не Claude; обычный промпт проходит дальше', async ($, on) => {
+    const { asked, stored } = world(on)
+    const entered: string[] = []
+    on('prompt.submit', ($, e) => {
+      entered.push(e.text)
+      return { text: e.text }
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+    const mine = await $.prompt.submit({ text: 'чан, как тебе Майнкрафт?', wait: false, origin: { kind: 'composer' } })
+    await settle()
+    expect('drop' in mine).toBe(true)
+    expect(entered).toEqual([])
+    expect(asked).toHaveLength(1)
+    expect(asked[0].prompt).toContain('Программист: как тебе Майнкрафт?')
+    expect(stored.open).toBe(true)
+
+    const other = await $.prompt.submit({ text: 'почини тест в чанке', wait: false, origin: { kind: 'composer' } })
+    expect('drop' in other).toBe(false)
+    expect(entered).toEqual(['почини тест в чанке'])
+    // чужая сессия написала «чан, …» — это не человек за клавиатурой, не перехватываем
+    await $.prompt.submit({ text: 'чан, привет', wait: false, origin: { kind: 'peer' } } as never)
+    expect(entered).toHaveLength(2)
+    expect(asked).toHaveLength(1)
+  })
+
   test('в низком или узком окне — одна строка со смайликом вместо портрета', async ($, on) => {
     world(on)
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })

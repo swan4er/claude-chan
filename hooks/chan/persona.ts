@@ -24,6 +24,15 @@ export const SYSTEM = [
   'Не выдумывай фактов о проекте и не изображай, будто что-то сделала.',
 ].join('\n')
 
+// Обращение по имени в обычной строке ввода: «чан, как дела?», «chan: привет», «ч что думаешь?».
+// Такая строка уходит Claude-чан, а не большому Claude, — переключать фокус не нужно.
+const ADDRESS = /^\s*(?:claude-?)?(?:чан|тян|chan|ч)(?:[,:]\s*|\s+)(\S[\s\S]*)$/i
+export function addressed(text: string): string | undefined {
+  // команды и многострочные промпты не трогаем: там «чан» в начале — совпадение, а не обращение
+  if (text.startsWith('/') || text.includes('\n')) return undefined
+  return ADDRESS.exec(text)?.[1].trim() || undefined
+}
+
 export type Turn = { who: 'user' | 'chan'; text: string }
 // столько последних реплик уходит в запрос: память короткая, зато запросы дешёвые
 export const MEMORY_TURNS = 8
